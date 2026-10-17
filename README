@@ -1,0 +1,78 @@
+# Waste Classification using Transfer Learning (MobileNetV2)
+
+A deep learning project that classifies a photo of a waste item into one of six categories: **cardboard, glass, metal, paper, plastic, trash**. It uses transfer learning with a pretrained **MobileNetV2** (ImageNet weights) and the **TrashNet** dataset.
+
+## Why this project
+Waste must be sorted by material before it can be recycled. Manual sorting is slow and error-prone, so this project automates the first step: recognising the type of waste from an image.
+
+## Dataset
+- **TrashNet** by Gary Thung and Mindy Yang: https://github.com/garythung/trashnet
+- 2,527 images, 6 classes
+
+| Class | Images |
+|---|---|
+| cardboard | 403 |
+| glass | 501 |
+| metal | 410 |
+| paper | 594 |
+| plastic | 482 |
+| trash | 137 |
+
+Split: 70% train (1,769), 15% validation (384), 15% test (374).
+The dataset is **not** stored in this repository. The notebook downloads it automatically (or uses `dataset-resized.zip` if you place it in the project folder). Please see the TrashNet repository for its licence.
+
+## Model
+```
+Input (224x224x3)
+ -> Data augmentation (horizontal flip, rotation 0.1, zoom 0.2)
+ -> MobileNetV2 preprocess_input (scale to [-1, 1])
+ -> MobileNetV2 base (ImageNet weights, include_top=False, 154 layers)
+ -> GlobalAveragePooling2D
+ -> Dropout (0.3)
+ -> Dense (6, softmax)
+```
+- Total parameters: 2,265,670 (8.64 MB)
+- **Stage 1:** base frozen, train the new head (Adam, lr = 1e-3, 7,686 trainable parameters)
+- **Stage 2:** fine-tune the top 40 base layers (Adam, lr = 1e-5)
+- Loss: sparse categorical cross-entropy
+- Callbacks: EarlyStopping (patience 3, restore best weights) and ReduceLROnPlateau (factor 0.3, patience 2)
+
+## Results (test set, 374 images)
+| | Accuracy |
+|---|---|
+| Before fine-tuning | 84.76% |
+| After fine-tuning | **85.03%** (318 / 374 correct) |
+
+| Class | Precision | Recall | F1 |
+|---|---|---|---|
+| cardboard | 0.88 | 0.88 | 0.88 |
+| glass | 0.87 | 0.90 | 0.89 |
+| metal | 0.89 | 0.82 | 0.85 |
+| paper | 0.88 | 0.89 | 0.89 |
+| plastic | 0.77 | 0.83 | 0.80 |
+| trash | 0.70 | 0.58 | 0.64 |
+
+Trash is the weakest class because it has the fewest images (137). Common confusions: metal predicted as glass, glass as plastic, and trash as plastic.
+
+## How to run
+**Google Colab (recommended):** upload `Waste_Classification_Transfer_Learning.ipynb`, set the runtime to GPU, and run all cells.
+
+**Locally:**
+```bash
+pip install -r requirements.txt
+jupyter notebook Waste_Classification_Transfer_Learning.ipynb
+```
+Training on a CPU is slower (about 30-60 minutes); a GPU takes a few minutes.
+
+The notebook also saves the trained model as `waste_model.keras` and launches a small **Gradio** demo: upload a waste photo and get the top-3 predicted classes.
+
+## Project files
+| File | Description |
+|---|---|
+| `Waste_Classification_Transfer_Learning.ipynb` | Full pipeline: data, model, training, evaluation, demo |
+| `waste_model.keras` | Trained model (if included) |
+| `requirements.txt` | Python packages |
+
+## Acknowledgements
+- Dataset: [TrashNet](https://github.com/garythung/trashnet) (Gary Thung, Mindy Yang)
+- The overall idea was adapted from [aniass/Waste-Classification](https://github.com/aniass/Waste-Classification). This version uses a different dataset (6 classes), a multi-class softmax head, MobileNetV2 preprocessing, 224x224 inputs, global average pooling, two-stage fine-tuning, callbacks and a more detailed evaluation.
